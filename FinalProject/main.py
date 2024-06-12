@@ -75,6 +75,7 @@ class Home(ft.UserControl):
     def __init__(self, page):
         super().__init__(expand=True)
         self.page = page
+        self.Title = ft.Text("Home")
 
 
 class Configuration(ft.UserControl):
