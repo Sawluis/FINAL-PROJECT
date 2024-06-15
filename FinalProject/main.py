@@ -1,14 +1,21 @@
-import tkinter as tk
+import os.path
+import time
+import warnings
+import shutil
 import threading
-from tkinter import filedialog
+import flet as ft
+import tkinter as tk
 import numpy as np
 import matplotlib.pyplot as plt
+from tkinter import filedialog
 from keras.src.models import Sequential
 from keras.src.layers import Dense
 from keras.src.utils import to_categorical
 from keras.src.saving import load_model
 from sklearn.metrics import confusion_matrix
-import flet as ft
+
+# Ignora todas las advertencias de deprecación
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Final Project of Artificial Inteligence Class
 # Developed by Luis Pineda: 2020-0251U
@@ -506,10 +513,13 @@ class PredictNewCase(ft.UserControl):
         )
 
     def PredictNewCase(self, e):
-        model = load_model(neuronal_network_filename)
 
-        if model is None:
+        if os.path.exists(neuronal_network_filename):
+            pass
+        else:
             return
+
+        model = load_model(neuronal_network_filename)
 
         if not self.Age.value.strip() or not self.CreatininePhosphoKinase.value.strip()\
                 or not self.EjectionFraction.value.strip() or not self. Platelets.value.strip()\
@@ -588,11 +598,59 @@ class PredictNewCase(ft.UserControl):
         return self.content
 
 
+def image_to_base64(file_path):
+    import base64
+    
+    if not os.path.exists(file_path):
+        return
+    
+    with open(file_path, "rb") as image_file:
+        image_data = image_file.read()
+        encoded_image = base64.b64encode(image_data)
+        base64_string = encoded_image.decode('utf-8')
+    return base64_string
+
+
+class ShowImage(ft.UserControl):
+    def __init__(self, page):
+        super().__init__(expand=True)
+        self.page = page
+        imageBase64 = image_to_base64(precision_plot_filename)
+
+        if imageBase64 is not None:
+            self.image = ft.Image(
+                src_base64=imageBase64,
+                fit=ft.ImageFit.CONTAIN,
+            )
+        else:
+            self.image = ft.Image(
+                src="oops.svg",
+                fit=ft.ImageFit.CONTAIN,
+            )
+
+        self.content = ft.ResponsiveRow(
+            controls=[
+                self.image
+            ]
+        )
+
+    def build(self):
+        return self.content
+
+    def update_image(self):
+        global precision_plot_filename
+        
+        imageBase64 = image_to_base64(precision_plot_filename)
+        self.image.src_base64 = imageBase64
+        self.update()
+
+
 class Configuration(ft.UserControl):
-    def __init__(self, page, home):
+    def __init__(self, page, home, showimage):
         super().__init__(expand=True)
         self.page = page
         self.home = home
+        self.showImage = showimage
         self.lossfunction = ft.Dropdown(
             label="Loss Function",
             value="binary_crossentropy",
@@ -768,10 +826,10 @@ class Configuration(ft.UserControl):
         plt.clf()
         plt.plot(history.history['accuracy'])
         plt.plot(history.history['val_accuracy'])
-        plt.title('Modelo de Exactitud')
-        plt.ylabel('Exactitud')
-        plt.xlabel('Epoca')
-        plt.legend(['Entrenamiento', 'Prueba'], loc='upper left')
+        plt.title('Accuracy Model')
+        plt.ylabel('Accuracy')
+        plt.xlabel('Epoch')
+        plt.legend(['Training', 'Test'], loc='upper left')
         plt.savefig(precision_plot_filename)
 
         TN = matrix[0, 0]
@@ -793,6 +851,8 @@ class Configuration(ft.UserControl):
 
         self.home.update_text(TotalCases, Accuracy, MissClassificationRate, Recall, Specificity, Precition,
                               PrecitionNeg)
+        
+        self.showImage.update_image()
 
     def build(self):
         return self.content
@@ -806,6 +866,7 @@ def main(page: ft.Page):
         home.visible = True if my_index == 0 else False
         predictNewCase.visible = True if my_index == 1 else False
         configuration.visible = True if my_index == 2 else False
+        showImage.visible = True if my_index == 3 else False
         page.update()
 
     page.title = "Neuronal Model"
@@ -829,6 +890,10 @@ def main(page: ft.Page):
                 icon=ft.icons.SETTINGS_ROUNDED,
                 label="Settings",
             ),
+            ft.NavigationDestination(
+                icon=ft.icons.AUTO_GRAPH,
+                label="Graphic",
+            ),
         ],
     )
 
@@ -836,13 +901,16 @@ def main(page: ft.Page):
     home.visible = True
     predictNewCase = PredictNewCase(page)
     predictNewCase.visible = False
-    configuration = Configuration(page, home)
+    showImage = ShowImage(page)
+    showImage.visible = False
+    configuration = Configuration(page, home, showImage)
     configuration.visible = False
 
     page.add(
         home,
         predictNewCase,
         configuration,
+        showImage,
     )
     page.theme_mode = ft.ThemeMode.DARK
 
