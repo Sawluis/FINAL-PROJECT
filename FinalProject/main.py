@@ -34,13 +34,14 @@ TotalCases = None
 TP = FN = FP = TN = 0
 TNPercentage = FNPercentage = TPPercentage = FPPercentage = 25
 ResultPredict = "There is no prediction"
+TrainResult = "Any 1.1"
 neuronal_network_filename = "neuronal_network.keras"
 precision_plot_filename = "precision-plot.png"
 
 lossType = ["binary_crossentropy", "categorical_crossentropy", "hinge", "mean_squared_error",
             "mean_absolute_error", "sparse_categorical_crossentropy"]
 optimizerType = ["adam", "sgd", "rmsprop", "adagrad", "adadelta", "adamax", "nadam"]
-metricType = ["accuracy", "precision", "recall", "f1_score", "mean_squared_error", "mean_absolute_error"]
+metricType = ["accuracy", "precision", "recall", "mean_squared_error", "mean_absolute_error"]
 activationMode = ["relu", "sigmoid", "tanh", "softmax", "linear"]
 boolType = ["True", "False"]
 gender = ["Female", "Male"]
@@ -323,14 +324,22 @@ class PredictNewCase(ft.UserControl):
             value=ResultPredict,
             color=ft.colors.BLUE
         )
-        self.page.banner = ft.Banner(
-            bgcolor=ft.colors.AMBER_100,
-            leading=ft.Icon(ft.icons.INFO_OUTLINED, color=ft.colors.AMBER, size=40),
-            content=self.text_result,
-            actions=[
-                ft.TextButton("Close", on_click=self.close_banner),
+        self.bsContainerColum = ft.Column(
+            [
+                self.text_result,
+                ft.ElevatedButton("Close", on_click=self.close_bs)
             ],
+            tight=True,
         )
+        self.bsContainer = ft.Container(
+                self.bsContainerColum,
+                padding=10,
+            )
+        self.bs = ft.BottomSheet(
+            self.bsContainer,
+            open=False,
+        )
+        self.page.overlay.append(self.bs)
         self.Age = ft.TextField(label="Age", border_color="#a0a1a4",
                                 helper_text="Age of the patient",
                                 value="75",
@@ -513,18 +522,22 @@ class PredictNewCase(ft.UserControl):
         )
 
     def PredictNewCase(self, e):
-
+        global ResultPredict
         if os.path.exists(neuronal_network_filename):
             pass
         else:
+            ResultPredict = "Please train a model"
+            self.show_bs()
             return
 
         model = load_model(neuronal_network_filename)
 
-        if not self.Age.value.strip() or not self.CreatininePhosphoKinase.value.strip()\
-                or not self.EjectionFraction.value.strip() or not self. Platelets.value.strip()\
-                or not self.SerumCreatinine.value.strip() or not self.SerumSodium.value.strip()\
+        if not self.Age.value.strip() or not self.CreatininePhosphoKinase.value.strip() \
+                or not self.EjectionFraction.value.strip() or not self.Platelets.value.strip() \
+                or not self.SerumCreatinine.value.strip() or not self.SerumSodium.value.strip() \
                 or not self.Time.value.strip():
+            ResultPredict = "Please enter all fields"
+            self.show_bs()
             return
 
         age_value = int(self.Age.value)
@@ -539,7 +552,6 @@ class PredictNewCase(ft.UserControl):
         sex_value = self.Sex.value
         smoking_value = to_int(self.Smoking.value)
         time_value = int(self.Time.value)
-        global ResultPredict
 
         if sex_value == gender[0]:
             sex_value = 0
@@ -548,6 +560,8 @@ class PredictNewCase(ft.UserControl):
 
         if (age_value < 1 or creatininePhosphoKinase_value < 1 or ejection_fraction_value < 1
                 or platelets_value < 1 or serum_sodium_value < 1 or time_value < 1):
+            ResultPredict = "Values cannot be less than 1"
+            self.show_bs()
             return
 
         creatininePhosphoKinase_value /= 100
@@ -582,17 +596,19 @@ class PredictNewCase(ft.UserControl):
         else:
             ResultPredict = "The patient survived"
 
-        self.show_banner_click()
+        print(ResultPredict)
 
-    def close_banner(self, e=None):
-        self.page.banner.open = False
-        self.page.update()
+        self.show_bs()
 
-    def show_banner_click(self):
-        self.page.banner.open = True
+    def close_bs(self, e=None):
+        self.bs.open = False
+        self.bs.update()
+
+    def show_bs(self):
+        self.bs.open = True
         self.text_result.value = ResultPredict
-        self.page.update()
-        threading.Timer(5.0, self.close_banner).start()
+        self.bs.update()
+        threading.Timer(5.0, self.close_bs).start()
 
     def build(self):
         return self.content
@@ -600,10 +616,10 @@ class PredictNewCase(ft.UserControl):
 
 def image_to_base64(file_path):
     import base64
-    
+
     if not os.path.exists(file_path):
         return
-    
+
     with open(file_path, "rb") as image_file:
         image_data = image_file.read()
         encoded_image = base64.b64encode(image_data)
@@ -639,7 +655,7 @@ class ShowImage(ft.UserControl):
 
     def update_image(self):
         global precision_plot_filename
-        
+
         imageBase64 = image_to_base64(precision_plot_filename)
         self.image.src_base64 = imageBase64
         self.update()
@@ -651,6 +667,21 @@ class Configuration(ft.UserControl):
         self.page = page
         self.home = home
         self.showImage = showimage
+        self.text_result = ft.Text(
+            value=TrainResult,
+            color=ft.colors.BLUE
+        )
+        self.text_button = ft.TextButton(
+            "Close",
+            on_click=self.close_banner,
+        )
+        self.page.banner = ft.Banner(
+            bgcolor=ft.colors.AMBER_100,
+            content=self.text_result,
+            actions=[
+                self.text_button,
+            ],
+        )
         self.lossfunction = ft.Dropdown(
             label="Loss Function",
             value="binary_crossentropy",
@@ -793,18 +824,34 @@ class Configuration(ft.UserControl):
         epochs_value = self.epochs.value.strip()
 
         global TotalCases, Accuracy, MissClassificationRate, Recall, Specificity, Precition, PrecitionNeg
-        global TP, FN, FP, TN
+        global TP, FN, FP, TN, TrainResult
 
-        if dataset is None or validationsplit == 1:
+        if dataset is None:
+            TrainResult = "Please load a dataset"
+            self.show_banner_click()
             return
-
-        if not batchsize_value or not epochs_value:
+        elif validationsplit == 1:
+            TrainResult = "The validation split cannot be 100%"
+            self.show_banner_click()
+            return
+        elif not batchsize_value:
+            TrainResult = "Please enter the batch size"
+            self.show_banner_click()
+            return
+        elif not epochs_value:
+            TrainResult = "Please enter the epochs"
+            self.show_banner_click()
             return
 
         batchsize = int(self.batchsize.value)
         epochs = int(self.epochs.value)
         if batchsize < 1 or epochs < 1:
+            TrainResult = "The batch size or epochs cannot be 0"
+            self.show_banner_click()
             return
+
+        TrainResult = "Compiling and training the model"
+        self.show_banner_click()
 
         model = Sequential()
         model.add(Dense(units=12, input_dim=12, activation="relu"))
@@ -824,10 +871,10 @@ class Configuration(ft.UserControl):
         #print(matrix)
 
         plt.clf()
-        plt.plot(history.history['accuracy'])
-        plt.plot(history.history['val_accuracy'])
-        plt.title('Accuracy Model')
-        plt.ylabel('Accuracy')
+        plt.plot(history.history[metrics])
+        plt.plot(history.history[f'val_{metrics}'])
+        plt.title(f'{metrics} model')
+        plt.ylabel(f'{metrics}')
         plt.xlabel('Epoch')
         plt.legend(['Training', 'Test'], loc='upper left')
         plt.savefig(precision_plot_filename)
@@ -844,15 +891,57 @@ class Configuration(ft.UserControl):
         Specificity = (TN / (TN + FP)) * 100
 
         #Precision de positivos que clasifica correctamente
-        Precition = (TP / (TP + FP)) * 100
+        if TP != 0 or FP != 0:
+            Precition = (TP / (TP + FP)) * 100
+        else:
+            Precition = 0
 
         # Precision de negativos que clasifica correctamente
-        PrecitionNeg = (TN / (TN + FN)) * 100
+        if TN != 0 or FN != 0:
+            PrecitionNeg = (TN / (TN + FN)) * 100
+        else:
+            PrecitionNeg = 0
 
         self.home.update_text(TotalCases, Accuracy, MissClassificationRate, Recall, Specificity, Precition,
                               PrecitionNeg)
-        
+
         self.showImage.update_image()
+
+        TrainResult = "Completed"
+        self.show_banner_click()
+
+    def close_banner(self, e=None):
+        self.page.banner.open = False
+        self.page.update()
+
+    def show_banner_click(self):
+        if TrainResult == "Compiling and training the model" or TrainResult == "Completed":
+            self.page.banner.leading = ft.Icon(ft.icons.CHECK_OUTLINED, color=ft.colors.GREEN, size=40)
+            self.page.banner.bgcolor = ft.colors.GREEN_100
+            self.text_result.color = ft.colors.GREEN
+            self.text_button.style = ft.ButtonStyle(
+                color={
+                    ft.MaterialState.HOVERED: ft.colors.BLACK,
+                    ft.MaterialState.FOCUSED: ft.colors.BLUE,
+                    ft.MaterialState.DEFAULT: ft.colors.GREEN,
+                }
+            )
+        else:
+            self.page.banner.leading = ft.Icon(ft.icons.INFO_OUTLINED, color=ft.colors.AMBER, size=40)
+            self.page.banner.bgcolor = ft.colors.AMBER_100
+            self.text_result.color = ft.colors.BLUE
+            self.text_button.style = ft.ButtonStyle(
+                color={
+                    ft.MaterialState.HOVERED: ft.colors.BLACK,
+                    ft.MaterialState.FOCUSED: ft.colors.BLACK,
+                    ft.MaterialState.DEFAULT: ft.colors.BLUE,
+                }
+            )
+
+        self.page.banner.open = True
+        self.text_result.value = TrainResult
+        self.page.update()
+        threading.Timer(4.0, self.close_banner).start()
 
     def build(self):
         return self.content
