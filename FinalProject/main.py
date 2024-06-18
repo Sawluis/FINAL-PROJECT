@@ -1004,4 +1004,5 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
 
 
-ft.app(main)
+# ft.app(main)
+ft.app(main, view=ft.AppView.WEB_BROWSER)
