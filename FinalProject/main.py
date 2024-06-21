@@ -1,17 +1,28 @@
+# Importamos las librerias que utilzaremos
+# Si no tienes python instalado te recomendamos que lo descargues de su pagina oficial
+# La version de python que usamos es la 3.12.4
+# https://www.python.org/downloads/
+# Luego instalar las librerias correspondientes
+# pip install flet
+# pip install tensorflow
+# pip install matplotlib
+# pip install numpy
+# pip install keras
+# pip install scikit-learn
+
 import os.path
-import time
-import warnings
-import shutil
 import threading
-import flet as ft
 import tkinter as tk
-import numpy as np
-import matplotlib.pyplot as plt
+import warnings
 from tkinter import filedialog
-from keras.src.models import Sequential
+
+import flet as ft
+import matplotlib.pyplot as plt
+import numpy as np
 from keras.src.layers import Dense
-from keras.src.utils import to_categorical
+from keras.src.models import Sequential
 from keras.src.saving import load_model
+from keras.src.utils import to_categorical
 from sklearn.metrics import confusion_matrix
 
 # Ignora todas las advertencias de deprecación
@@ -22,30 +33,48 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 #           && Engel Reyes: 2020-0505U
 
 # Cambia el backend de Matplotlib
+# Para permitir solo guardar gráficos directamente en archivos (por ejemplo, PNG, PDF).
+# Este backend no abre una ventana para mostrar los gráficos.
 plt.switch_backend('Agg')
 
+# Establecer una semilla asegura la reproducibilidad de
+# los resultados cuando se utilizan funciones aleatorias
 np.random.seed(7)
 
+# Estas variables están inicializadas en None, lo que significa
+# que aún no tienen un valor asignado
 dataset = X = Y = None
 Y_one_hot = history = None
 Accuracy = MissClassificationRate = Recall = Specificity = None
 Precition = PrecitionNeg = None
 TotalCases = None
+# Variables inicializadas en cero que estan relacionadas con la matriz de confusión
 TP = FN = FP = TN = 0
+# Estas variables son el tamaño de cada parte del grafico de pastel
 TNPercentage = FNPercentage = TPPercentage = FPPercentage = 25
+# Otras variables que se utilizan en el programa
 ResultPredict = "There is no prediction"
 TrainResult = "Any 1.1"
 neuronal_network_filename = "neuronal_network.keras"
 precision_plot_filename = "precision-plot.png"
 
+# Variable con los Tipos de funciones de pérdida
 lossType = ["binary_crossentropy", "categorical_crossentropy", "hinge", "mean_squared_error",
             "mean_absolute_error", "sparse_categorical_crossentropy"]
+# Variable con los Tipos de optimizadores
 optimizerType = ["adam", "sgd", "rmsprop", "adagrad", "adadelta", "adamax", "nadam"]
+# Variable con los Tipos de métricas
 metricType = ["accuracy", "precision", "recall", "mean_squared_error", "mean_absolute_error"]
+# Variable con los Modos de activación
 activationMode = ["relu", "sigmoid", "tanh", "softmax", "linear"]
+# Variable con Valores booleanos
 boolType = ["True", "False"]
+# Variable con Opciones de género que pueden ser usadas
 gender = ["Female", "Male"]
+# Variable con los Nombres de las categorías en la matriz de confusión
 matrix_str = ["TN", "FN", "TP", "FP"]
+# Configura un filtro de entrada
+# Este filtro de entrada está diseñado para permitir números decimales
 decimalFilter = ft.InputFilter(regex_string=r'[0-9]+[.]{0,1}[0-9]*', allow=True, replacement_string="")
 
 
@@ -77,26 +106,38 @@ def open_csv(event=None):
 
     root.destroy()
 
+    #
     if file_path:
         try:
+            # Carga el archivo CSV en un arreglo de NumPy
             dataset = np.loadtxt(file_path, delimiter=",", skiprows=1, encoding="utf-8")
+
+            # Normaliza los valores en la columna 2 y 6
             dataset[:, 2] /= 100
             dataset[:, 6] /= 100000
+
+            # Extrae las características (X) y las etiquetas (Y)
             X = dataset[0:, 0:12]
             Y = dataset[0:, -1]
+
+            # Convierte las etiquetas en one-hot encoding
             Y_one_hot = to_categorical(Y)
-            #unique, counts = numpy.unique(Y, return_counts=True)
-            #print("Matriz X \n", X[:, 6])
-            #print("Matriz Y \n", Y)
-            #print("Cantidad por categoria: \n", dict(zip(unique, counts)))
-            #print(Y_one_hot)
+
+            # Comentarios, para verificar el contenido de las matrices y la distribución de categorías
+            # unique, counts = numpy.unique(Y, return_counts=True)
+            # print("Matriz X \n", X[:, 6])
+            # print("Matriz Y \n", Y)
+            # print("Cantidad por categoria: \n", dict(zip(unique, counts)))
+            # print(Y_one_hot)
         except Exception as e:
+            # Maneja errores en la carga del archivo
             print("Error loading CSV file:", e)
             return None
     else:
         return None
 
 
+# style_frame configura los estilos parael grafico de pastel
 style_frame: dict = {
     "expand": True,
     "bgcolor": "#1f2128",
@@ -105,6 +146,7 @@ style_frame: dict = {
 }
 
 
+# Convierte una cadena booleana al numero entero que corresponde y lo retorna
 def to_int(value):
     if value == 'True':
         return 1
@@ -114,6 +156,7 @@ def to_int(value):
         return int(value)
 
 
+# Este componente consiste en crear un icono centrado dentro de un contenedor circular con un borde negro
 def badge(icon, size):
     return ft.Container(
         ft.Icon(icon, color=ft.colors.BLACK),
@@ -125,8 +168,10 @@ def badge(icon, size):
     )
 
 
+# Muestra un grafico de pastel con interactividad mediante el metodo on_chart_event
 class Graph(ft.Container):
     def __init__(self):
+        # Esto aplica los estilos definidos en style_frame al contenedor.
         super().__init__(**style_frame)
         self.normal_radius = 80
         self.hover_radius = 90
@@ -140,6 +185,8 @@ class Graph(ft.Container):
             shadow=ft.BoxShadow(blur_radius=2, color=ft.colors.BLACK),
         )
         self.normalBadgeSize = 30
+
+        # Creación del Gráfico de Pastel con secciones basadas en los porcentajes definidos en las variables
         self.content = ft.PieChart(
             sections=[
                 ft.PieChartSection(
@@ -185,6 +232,9 @@ class Graph(ft.Container):
             expand=True,
         )
 
+    # Este método ajusta el radio y el estilo del título de la sección cuando se interactúa
+    # con ella (por ejemplo, al pasar el ratón sobre la sección del grafico), mostrando el valor
+    # correspondiente (TN, FN, TP, FP).
     def on_chart_event(self, e):
         for idx, section in enumerate(self.content.sections):
             if idx == e.section_index:
@@ -204,6 +254,8 @@ class Graph(ft.Container):
                 section.title = matrix_str[idx]
         self.content.update()
 
+    # Este método retorna el contenido del gráfico, listo para ser utilizado
+    # en la interfaz.
     def build(self):
         return self.content
 
@@ -212,13 +264,20 @@ class Home(ft.UserControl):
     def __init__(self, page):
         super().__init__(expand=True)
         self.page = page
+
+        # Instancia del gráfico definido en la clase Graph.
         graph: ft.Container = Graph()
+        # Tamaño de la fuente para el texto de las tarjetas.
         card_text_size = 15
+
+        #Titulo principal de la pagina
         self.Title = ft.Text(
             "Home",
             size=40,
             text_align="center",
         )
+
+        # Textos para cada una de las métricas que se mostrarán en las tarjetas.
         self.total_cases_text = ft.Text(
             f"The total number of cases in the dataset is {TotalCases}",
             size=card_text_size,
@@ -247,6 +306,8 @@ class Home(ft.UserControl):
             f"The percentage that classifies correctly when predicting negatives is {PrecitionNeg}",
             size=card_text_size,
         )
+
+        # Creación de Tarjetas
         card_data = [
             ("Total Cases", self.total_cases_text),
             ("Accuracy", self.accuracy_text),
@@ -273,6 +334,8 @@ class Home(ft.UserControl):
             )
             cards.append(card)
 
+        # Contenedor principal de la página que contiene todos los controles
+        # (título, tarjetas y gráfico)
         self.Home = ft.Container(
             bgcolor="#222222",
             border_radius=10,
@@ -305,6 +368,9 @@ class Home(ft.UserControl):
     def build(self):
         return self.content
 
+    # Método para actualizar los textos de las métricas.
+    # Cada texto es actualizado con los nuevos valores proporcionados y
+    # el componente se actualiza mediante self.update().
     def update_text(self, total_cases, accuracy, missclassificationrate, recall, specificity, precition, negprecition):
         self.total_cases_text.value = f"The total number of cases in the dataset is {total_cases}"
         self.accuracy_text.value = f"The accuracy is {accuracy:.2f}%"
@@ -316,14 +382,21 @@ class Home(ft.UserControl):
         self.update()
 
 
+# Predice nuevos casos utilizando un modelo de red neuronal cargado
+# desde un archivo, ese archivo es el que se guarda despues de compilar y entrenar el modelo
+# desde el modulo de settings
 class PredictNewCase(ft.UserControl):
     def __init__(self, page):
         super().__init__(expand=True)
         self.page = page
+
+        # Mostrará el resultado de la predicción
         self.text_result = ft.Text(
             value=ResultPredict,
             color=ft.colors.BLUE
         )
+
+        # Contiene el texto del resultado y un botón para cerrar la ventana emergente
         self.bsContainerColum = ft.Column(
             [
                 self.text_result,
@@ -340,6 +413,8 @@ class PredictNewCase(ft.UserControl):
             open=False,
         )
         self.page.overlay.append(self.bs)
+
+        # Campos para rellenar para la nueva prediccion
         self.Age = ft.TextField(label="Age", border_color="#a0a1a4",
                                 helper_text="Age of the patient",
                                 value="75",
@@ -540,6 +615,7 @@ class PredictNewCase(ft.UserControl):
             self.show_bs()
             return
 
+        # Convertir valores a los tipos de datos adecuados
         age_value = int(self.Age.value)
         anaemia_value = to_int(self.Anaemia.value)
         creatininePhosphoKinase_value = int(self.CreatininePhosphoKinase.value)
@@ -553,20 +629,24 @@ class PredictNewCase(ft.UserControl):
         smoking_value = to_int(self.Smoking.value)
         time_value = int(self.Time.value)
 
+        # Convertir el valor de sexo a un valor numérico
         if sex_value == gender[0]:
             sex_value = 0
         else:
             sex_value = 1
 
+        # Validar que los valores no sean menores que 1
         if (age_value < 1 or creatininePhosphoKinase_value < 1 or ejection_fraction_value < 1
                 or platelets_value < 1 or serum_sodium_value < 1 or time_value < 1):
             ResultPredict = "Values cannot be less than 1"
             self.show_bs()
             return
 
+        # Normalizar algunos valores
         creatininePhosphoKinase_value /= 100
         platelets_value /= 100000
 
+        # Crear un array con los datos de entrada
         Xnew = np.array(
             [
                 [
@@ -586,24 +666,30 @@ class PredictNewCase(ft.UserControl):
             ]
         )
 
+        # Predecir utilizando el modelo cargado
         Ynew = model.predict(Xnew)
         newPredictions = [round(x[0]) for x in Ynew]
         print(newPredictions[0])
         print(Ynew)
 
+        # Determinar el resultado de la predicción
         if newPredictions[0] == 1:
-            ResultPredict = "The patient died during the follow-up period"
+            ResultPredict = "The patient will die during the follow-up period"
         else:
-            ResultPredict = "The patient survived"
+            ResultPredict = "The patient will survive"
 
         print(ResultPredict)
 
+        # Mostrar el resultado en el BottomSheet
         self.show_bs()
 
+    # Cierra el BottomSheet configurando open=False y actualiza la interfaz
     def close_bs(self, e=None):
         self.bs.open = False
         self.bs.update()
 
+    # Muestra el BottomSheet configurando open=True, actualiza el texto
+    # del resultado y programa su cierre después de 5 segundos
     def show_bs(self):
         self.bs.open = True
         self.text_result.value = ResultPredict
@@ -614,6 +700,8 @@ class PredictNewCase(ft.UserControl):
         return self.content
 
 
+# Convierte una imagen ubicada en file_path a una cadena en formato base64
+# Esto lo hicimos ya que si le pasabamos la misma ruta de imagen no se actualizaba la imagen en la interfaz
 def image_to_base64(file_path):
     import base64
 
@@ -627,12 +715,18 @@ def image_to_base64(file_path):
     return base64_string
 
 
+# Muestra una imagen en una interfaz de usuario
 class ShowImage(ft.UserControl):
     def __init__(self, page):
         super().__init__(expand=True)
         self.page = page
+
+        # Utiliza la función image_to_base64 para obtener la representación en base64
+        # de la imagen especificada por precision_plot_filename
         imageBase64 = image_to_base64(precision_plot_filename)
 
+        # Si imageBase64 es None, indica que no se pudo cargar la imagen desde
+        # el archivo especificado, por lo que se usa una imagen de respaldo, el cual es error 404
         if imageBase64 is not None:
             self.image = ft.Image(
                 src_base64=imageBase64,
@@ -657,24 +751,34 @@ class ShowImage(ft.UserControl):
         global precision_plot_filename
 
         imageBase64 = image_to_base64(precision_plot_filename)
+        # Actualiza el atributo src_base64 de self.image con la nueva representación base64
         self.image.src_base64 = imageBase64
+        # Llama al método update() para reflejar los cambios en la interfaz de usuario
         self.update()
 
 
+# La clase Configuration que utiliza es para configurar diferentes aspectos relacionados
+# con la compilación y el entrenamiento del modelo de aprendizaje automático.
 class Configuration(ft.UserControl):
     def __init__(self, page, home, showimage):
         super().__init__(expand=True)
         self.page = page
         self.home = home
         self.showImage = showimage
+
+        # Texto para mostrar el resultado del entrenamiento
         self.text_result = ft.Text(
             value=TrainResult,
             color=ft.colors.BLUE
         )
+
+        # Botón para cerrar el banner
         self.text_button = ft.TextButton(
             "Close",
             on_click=self.close_banner,
         )
+
+        # Banner para mostrar mensajes, como resultados del entrenamiento
         self.page.banner = ft.Banner(
             bgcolor=ft.colors.AMBER_100,
             content=self.text_result,
@@ -682,6 +786,8 @@ class Configuration(ft.UserControl):
                 self.text_button,
             ],
         )
+
+        # Configuración de la función de pérdida
         self.lossfunction = ft.Dropdown(
             label="Loss Function",
             value="binary_crossentropy",
@@ -691,6 +797,8 @@ class Configuration(ft.UserControl):
                 ft.dropdown.Option(opt) for opt in lossType
             ]
         )
+
+        # Configuración del optimizador
         self.optimizer = ft.Dropdown(
             label="Optimizer",
             hint_text="Choose a optimizer",
@@ -701,6 +809,8 @@ class Configuration(ft.UserControl):
             ],
             autofocus=True
         )
+
+        # Configuración de las métricas
         self.metrics = ft.Dropdown(
             label="Metrics",
             value="accuracy",
@@ -710,6 +820,8 @@ class Configuration(ft.UserControl):
                 ft.dropdown.Option(opt) for opt in metricType
             ]
         )
+
+        # Configuración del split de validación
         self.validationsplit = ft.Slider(
             value=10,
             min=10,
@@ -717,15 +829,20 @@ class Configuration(ft.UserControl):
             divisions=9,
             label="{value}%"
         )
+
+        # Configuración de las épocas de entrenamiento
         self.epochs = ft.TextField(label="Epochs", border_color="blue",
                                    value="150",
                                    input_filter=ft.NumbersOnlyInputFilter(),
                                    max_length=3)
+
+        # Configuración del tamaño del batch
         self.batchsize = ft.TextField(label="Batch Size", border_color="blue",
                                       input_filter=ft.NumbersOnlyInputFilter(),
                                       value="10",
                                       max_length=2)
 
+        # Módulo para abrir un archivo CSV
         self.OpenFile = ft.Container(
             bgcolor="#222222",
             border_radius=10,
@@ -757,6 +874,7 @@ class Configuration(ft.UserControl):
             )
         )
 
+        # Módulo para configurar la compilación del modelo
         self.CompileConfigModule = ft.Container(
             bgcolor="#222222",
             border_radius=10,
@@ -777,6 +895,7 @@ class Configuration(ft.UserControl):
             )
         )
 
+        # Módulo para configurar el entrenamiento del modelo
         self.TrainConfigModule = ft.Container(
             bgcolor="#222222",
             border_radius=10,
@@ -806,6 +925,7 @@ class Configuration(ft.UserControl):
             )
         )
 
+        # Contenedor principal con filas responsivas que contienen los módulos de configuración
         self.content = ft.ResponsiveRow(
             controls=[
                 self.OpenFile,
@@ -814,8 +934,11 @@ class Configuration(ft.UserControl):
             ]
         )
 
+    # Este método se encarga de compilar y entrenar el modelo de red neuronal
     def TrainAction(self, e):
         global history
+
+        # Obtenemos los valores de los parámetros de configuración
         loss = self.lossfunction.value
         optimizer = self.optimizer.value
         metrics = self.metrics.value
@@ -823,17 +946,21 @@ class Configuration(ft.UserControl):
         batchsize_value = self.batchsize.value.strip()
         epochs_value = self.epochs.value.strip()
 
+        # Definimos algunas variables globales para almacenar resultados
         global TotalCases, Accuracy, MissClassificationRate, Recall, Specificity, Precition, PrecitionNeg
         global TP, FN, FP, TN, TrainResult
 
+        # Verificamos si se ha cargado un conjunto de datos
         if dataset is None:
             TrainResult = "Please load a dataset"
             self.show_banner_click()
             return
+        # Verificamos que el split de validación no sea 100%
         elif validationsplit == 1:
             TrainResult = "The validation split cannot be 100%"
             self.show_banner_click()
             return
+        # Verificamos que se haya ingresado el tamaño del batch y las épocas
         elif not batchsize_value:
             TrainResult = "Please enter the batch size"
             self.show_banner_click()
@@ -843,33 +970,48 @@ class Configuration(ft.UserControl):
             self.show_banner_click()
             return
 
+        # Convertimos los valores del tamaño del batch y las épocas a enteros
         batchsize = int(self.batchsize.value)
         epochs = int(self.epochs.value)
+
+        # Verificamos que el tamaño del batch y las épocas sean mayores que cero
         if batchsize < 1 or epochs < 1:
             TrainResult = "The batch size or epochs cannot be 0"
             self.show_banner_click()
             return
 
+        # Mostramos un mensaje de que se está compilando y entrenando el modelo
         TrainResult = "Compiling and training the model"
         self.show_banner_click()
 
+        # Definimos la arquitectura del modelo
         model = Sequential()
         model.add(Dense(units=12, input_dim=12, activation="relu"))
         model.add(Dense(units=8, activation="relu"))
         model.add(Dense(units=5, activation="relu"))
         model.add(Dense(units=1, activation="sigmoid"))
+
+        # Compilamos el modelo con la función de pérdida, optimizador y métricas especificadas
         model.compile(loss=loss, optimizer=optimizer, metrics=[metrics])
+
+        # Entrenamos el modelo con los datos X, Y, utilizando el split de validación, épocas y tamaño del lote
         history = model.fit(X, Y, validation_split=validationsplit, epochs=epochs, batch_size=batchsize,
                             verbose=0)
-        #print(history.history.keys())
+        # print(history.history.keys())
 
+        # Guardamos el modelo entrenado en un archivo
+        # Esto lo utilizamos en el modulod de predecir un nuevo caso
         model.save(filepath=neuronal_network_filename, overwrite=True)
+
+        # Realizamos predicciones con el modelo entrenado
         predictions = model.predict(X)
         rounded = [round(x[0]) for x in predictions]
 
+        # Calculamos la matriz de confusión y la guardamos
         matrix = confusion_matrix(Y, rounded)
-        #print(matrix)
+        # print(matrix)
 
+        # Creamos un gráfico con las métricas de entrenamiento y validación
         plt.clf()
         plt.plot(history.history[metrics])
         plt.plot(history.history[f'val_{metrics}'])
@@ -879,6 +1021,7 @@ class Configuration(ft.UserControl):
         plt.legend(['Training', 'Test'], loc='upper left')
         plt.savefig(precision_plot_filename)
 
+        # Actualizamos las variables globales con los resultados de la matriz de confusión
         TN = matrix[0, 0]
         FP = matrix[0, 1]
         FN = matrix[1, 0]
@@ -890,30 +1033,39 @@ class Configuration(ft.UserControl):
         Recall = (TP / (TP + FN)) * 100
         Specificity = (TN / (TN + FP)) * 100
 
-        #Precision de positivos que clasifica correctamente
+        # Calculamos la precisión de los positivos y negativos clasificados correctamente
         if TP != 0 or FP != 0:
             Precition = (TP / (TP + FP)) * 100
         else:
             Precition = 0
 
-        # Precision de negativos que clasifica correctamente
         if TN != 0 or FN != 0:
             PrecitionNeg = (TN / (TN + FN)) * 100
         else:
             PrecitionNeg = 0
 
+        # Actualizamos la interfaz de usuario de la página principal con los resultados
         self.home.update_text(TotalCases, Accuracy, MissClassificationRate, Recall, Specificity, Precition,
                               PrecitionNeg)
 
+        # Actualizamos la imagen mostrada en la interfaz con el gráfico generado
         self.showImage.update_image()
 
+        # Mostramos que el entrenamiento ha sido completado
         TrainResult = "Completed"
         self.show_banner_click()
 
+    # Simplemente cierra el banner de la interfaz de usuario al establecer self.page.banner.open
+    # en False y luego actualiza la página para reflejar este cambio
     def close_banner(self, e=None):
         self.page.banner.open = False
         self.page.update()
 
+    # Se encarga de mostrar el banner de la interfaz de usuario con un icono y colores
+    # específicos dependiendo del estado de TrainResult. Si TrainResult es "Compiling
+    # and training the model" o "Completed", se muestra un icono de verificación verde
+    # y se establece el color del texto y botón en verde. En caso contrario, se muestra
+    # un icono de información ámbar y se establece el color del texto y botón en azul
     def show_banner_click(self):
         if TrainResult == "Compiling and training the model" or TrainResult == "Completed":
             self.page.banner.leading = ft.Icon(ft.icons.CHECK_OUTLINED, color=ft.colors.GREEN, size=40)
@@ -947,9 +1099,13 @@ class Configuration(ft.UserControl):
         return self.content
 
 
+# Funcion principal donde cargamos todos los modulos
 def main(page: ft.Page):
+    # Actualiza la página para asegurar que esté lista para ser mostrada.
     page.update()
 
+    # Es una función interna que se llama cuando se cambia la pestaña
+    # en la barra de navegación (on_change=changeTab).
     def changeTab(e):
         my_index = e.control.selected_index
         home.visible = True if my_index == 0 else False
@@ -958,6 +1114,7 @@ def main(page: ft.Page):
         showImage.visible = True if my_index == 3 else False
         page.update()
 
+    # Se establecen diversas propiedades de la ventana principal
     page.title = "Neuronal Model"
     page.window_width = 1100
     page.window_height = 900
@@ -986,6 +1143,7 @@ def main(page: ft.Page):
         ],
     )
 
+    # Son instancias de las clases que representan la interfaz de usuario
     home = Home(page)
     home.visible = True
     predictNewCase = PredictNewCase(page)
@@ -995,13 +1153,18 @@ def main(page: ft.Page):
     configuration = Configuration(page, home, showImage)
     configuration.visible = False
 
+    # Agrega todas las vistas
     page.add(
         home,
         predictNewCase,
         configuration,
         showImage,
     )
+    # Establece el modo de tema oscuro para la aplicación,
+    # lo que afectará a todos los elementos de la interfaz que soporten este modo.
     page.theme_mode = ft.ThemeMode.DARK
 
 
+# Inicia la aplicación utilizando la función main como el punto de entrada principal.
 ft.app(main)
+# ft.app(main, view=ft.AppView.WEB_BROWSER)
